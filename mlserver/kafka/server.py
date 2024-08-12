@@ -46,6 +46,7 @@ class KafkaServer:
                 sasl_mechanism=self._settings.kafka_sasl_mechanism,
                 sasl_plain_username=self._settings.kafka_sasl_plain_username,
                 sasl_plain_password=self._settings.kafka_sasl_plain_password,
+                group_id=self._settings.kafka_group_id,
                 ssl_context=ssl_context
             )
             self._producer = AIOKafkaProducer(

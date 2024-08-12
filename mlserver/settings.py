@@ -242,6 +242,7 @@ class Settings(BaseSettings):
     kafka_ssl_cert_file: Optional[str] = None
     kafka_ssl_key_file: Optional[str] = None
     kafka_ssl_key_password: Optional[str] = None
+    kafka_group_id: Optional[str] = None
 
 
     # OpenTelemetry Tracing settings
