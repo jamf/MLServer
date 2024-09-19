@@ -215,7 +215,8 @@ In these cases, to load your custom runtime, MLServer will need access to these
 dependencies.
 
 It is possible to load this custom set of dependencies by providing them
-through an [environment tarball](../examples/conda/README), whose path can be
+through an [environment tarball](../examples/conda/README) or by giving a
+path to an already exisiting python environment. Both paths can be
 specified within your `model-settings.json` file.
 
 ```{warning}
@@ -224,11 +225,25 @@ To load a custom environment, [parallel inference](./parallel-inference)
 ```
 
 ```{warning}
-When loading custom environments, MLServer will always use the same Python
-interpreter that is used to run the main process.
-In other words, all custom environments will use the same version of Python
-than the main MLServer process.
+The main MLServer process communicates with workers in custom environments via
+[`multiprocessing.Queue`](https://docs.python.org/3/library/multiprocessing.html#multiprocessing.Queue)
+using pickled objects. Custom environments therefore **must** use the same
+version of MLServer and a compatible version of Python with the same [default
+pickle protocol](https://docs.python.org/3/library/pickle.html#pickle.DEFAULT_PROTOCOL)
+as the main process. Consult the tables below for environment compatibility.
 ```
+
+| Status | Description  |
+| ------ | ------------ |
+| 🔴     | Unsupported  |
+| 🟢     | Supported    |
+| 🔵     | Untested     |
+
+| Worker Python \ Server Python | 3.9 | 3.10 | 3.11 |
+| ----------------------------- | --- | ---- | ---- |
+| 3.9                           | 🟢  | 🟢   | 🔵   |
+| 3.10                          | 🟢  | 🟢   | 🔵   |
+| 3.11                          | 🔵  | 🔵   | 🔵   |
 
 If we take the [previous example](#loading-a-custom-mlserver-runtime) above as
 a reference, we could extend it to include our custom environment as:
@@ -262,6 +277,21 @@ Note that, in the folder layout above, we are assuming that:
     }
   }
   ```
+
+If you want to use an already exisiting python environment, you can use the parameter `environment_path` of your `model-settings.json`:
+
+```
+---
+emphasize-lines: 5
+---
+{
+  "model": "sum-model",
+  "implementation": "models.MyCustomRuntime",
+  "parameters": {
+    "environment_path": "~/micromambda/envs/my-conda-environment"
+  }
+}
+```
 
 ## Building a custom MLServer image
 

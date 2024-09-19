@@ -10,7 +10,7 @@ from mlserver.model import MLModel
 from mlserver.env import Environment
 from mlserver.parallel.dispatcher import Dispatcher
 from mlserver.parallel.model import ModelMethods
-from mlserver.parallel.pool import InferencePool
+from mlserver.parallel.pool import InferencePool, _spawn_worker
 from mlserver.parallel.worker import Worker
 from mlserver.parallel.utils import configure_inference_pool, cancel_task
 from mlserver.parallel.messages import (
@@ -162,6 +162,21 @@ def env_model_settings(env_tarball: str) -> ModelSettings:
 
 
 @pytest.fixture
+def existing_env_model_settings(env_tarball: str, tmp_path) -> ModelSettings:
+    from mlserver.env import _extract_env
+
+    env_path = str(tmp_path)
+
+    _extract_env(env_tarball, env_path)
+    model_settings = ModelSettings(
+        name="exising_env_model",
+        implementation=EnvModel,
+        parameters=ModelParameters(environment_path=env_path),
+    )
+    yield model_settings
+
+
+@pytest.fixture
 async def worker_with_env(
     settings: Settings,
     responses: Queue,
@@ -170,9 +185,7 @@ async def worker_with_env(
 ):
     # NOTE: This fixture will start an actual worker running on a separate
     # process.
-    worker = Worker(settings, responses, env)
-
-    worker.start()
+    worker = _spawn_worker(settings, responses, env)
 
     load_message = ModelUpdateMessage(
         update_type=ModelUpdateType.Load, model_settings=env_model_settings

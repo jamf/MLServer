@@ -1,5 +1,7 @@
 import asyncio
+import multiprocessing
 import os
+import shutil
 import sys
 import tarfile
 import glob
@@ -17,7 +19,7 @@ def _extract_env(tarball_path: str, env_path: str) -> None:
         tarball.extractall(path=env_path)
 
 
-def _compute_hash(tarball_path: str) -> str:
+def _compute_hash_of_file(tarball_path: str) -> str:
     """
     From Python 3.11's implementation of `hashlib.file_digest()`:
     https://github.com/python/cpython/blob/3.11/Lib/hashlib.py#L257
@@ -38,9 +40,20 @@ def _compute_hash(tarball_path: str) -> str:
     return h.hexdigest()
 
 
-async def compute_hash(tarball_path: str) -> str:
+def _compute_hash_of_string(string: str) -> str:
+    h = hashlib.sha256()
+    h.update(string.encode())
+    return h.hexdigest()
+
+
+async def compute_hash_of_file(tarball_path: str) -> str:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _compute_hash, tarball_path)
+    return await loop.run_in_executor(None, _compute_hash_of_file, tarball_path)
+
+
+async def compute_hash_of_string(string: str) -> str:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _compute_hash_of_string, string)
 
 
 class Environment:
@@ -50,7 +63,8 @@ class Environment:
     environment.
     """
 
-    def __init__(self, env_path: str, env_hash: str):
+    def __init__(self, env_path: str, env_hash: str, delete_env: bool = True):
+        self._delete_env = delete_env
         self._env_path = env_path
         self.env_hash = env_hash
 
@@ -66,7 +80,7 @@ class Environment:
         await loop.run_in_executor(None, _extract_env, tarball_path, env_path)
 
         if not env_hash:
-            env_hash = await compute_hash(tarball_path)
+            env_hash = await compute_hash_of_file(tarball_path)
 
         return cls(env_path, env_hash)
 
@@ -100,6 +114,13 @@ class Environment:
         return os.path.join(self._env_path, "bin")
 
     @cached_property
+    def _exec_path(self) -> str:
+        """
+        Path to python executable in our custom environment.
+        """
+        return os.path.join(self._bin_path, "python")
+
+    @cached_property
     def _lib_path(self) -> str:
         """
         Base environment path (i.e. user data directory - as defined by
@@ -118,11 +139,18 @@ class Environment:
         self._prev_sys_path = sys.path
         self._prev_bin_path = os.environ["PATH"]
 
+        multiprocessing.set_executable(self._exec_path)
         sys.path = [*self._sys_path, *self._prev_sys_path]
         os.environ["PATH"] = os.pathsep.join([self._bin_path, self._prev_bin_path])
 
         return self
 
     def __exit__(self, *exc_details) -> None:
+        multiprocessing.set_executable(sys.executable)
         sys.path = self._prev_sys_path
         os.environ["PATH"] = self._prev_bin_path
+
+    def __del__(self) -> None:
+        logger.info("Cleaning up environment")
+        if self._delete_env:
+            shutil.rmtree(self._env_path)
