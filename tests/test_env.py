@@ -3,17 +3,19 @@ import sys
 import os
 import shutil
 
-from mlserver.env import Environment, compute_hash
+from typing import Tuple
+
+from mlserver.env import Environment, compute_hash_of_file
 
 
 @pytest.fixture
-def expected_python_folder() -> str:
-    v = sys.version_info
-    return f"python{v.major}.{v.minor}"
+def expected_python_folder(env_python_version: Tuple[int, int]) -> str:
+    major, minor = env_python_version
+    return f"python{major}.{minor}"
 
 
 async def test_compute_hash(env_tarball: str):
-    env_hash = await compute_hash(env_tarball)
+    env_hash = await compute_hash_of_file(env_tarball)
     assert len(env_hash) == 64
 
 
@@ -68,6 +70,10 @@ def test_bin_path(env: Environment):
     assert env._bin_path == f"{env._env_path}/bin"
 
 
+def test_exec_path(env: Environment):
+    assert env._exec_path == f"{env._env_path}/bin/python"
+
+
 def test_activate_env(env: Environment):
     assert env._env_path not in ",".join(sys.path)
     assert env._env_path not in os.environ["PATH"]
@@ -81,6 +87,9 @@ def test_activate_env(env: Environment):
 
         bin_paths = os.environ["PATH"].split(os.pathsep)
         assert bin_paths[0] == env._bin_path
+
+        exec_path = os.path.join(bin_paths[0], "python")
+        assert exec_path == env._exec_path
 
     assert env._env_path not in ",".join(sys.path)
     assert env._env_path not in os.environ["PATH"]
